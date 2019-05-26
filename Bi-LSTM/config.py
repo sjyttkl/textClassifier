@@ -18,7 +18,7 @@ class TrainConfig:
     epoches =10
     evaluateEvary = 100
     checkpointEvery = 100
-    learningRate = 0.001
+    learningRate = 0.001 #1e-3
 
 class ModelConfig:
     embeddingSize = 200
@@ -34,8 +34,9 @@ class Config:
     numClasses = 2
     rate = 0.8 #训练集的比例
     training  = TrainConfig()
-    Model = ModelConfig()
-# 实例化配置参数对象
-config = Config()
+    model = ModelConfig()
+if __name__ == "__main__":
+    # 实例化配置参数对象
+    config = Config()
 
 
