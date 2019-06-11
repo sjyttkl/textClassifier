@@ -16,8 +16,8 @@ import tensorflow as tf
 
 class TrainConfig:
     epoches =10
-    evaluateEvary = 100
-    checkpointEvery = 100
+    evaluateEvery = 10  #100
+    checkpointEvery = 10 #100
     learningRate = 0.001 #1e-3
 
 class ModelConfig:
@@ -27,7 +27,7 @@ class ModelConfig:
     l2RegLambda = 0.0
 
 class Config:
-    SequenceLength = 200
+    sequenceLength = 200
     batchSize = 138
     dataSource = "../data/preProcess/labeledTrain.csv"
     stopWordSource = "../data/english"

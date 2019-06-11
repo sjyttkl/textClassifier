@@ -22,11 +22,11 @@ from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, reca
 
 class DataSet:
     def __init__(self,config):
-        self._config = config.Config()
+        self._config = config
         self._dataSource = self._config.dataSource
         self._stopWordSource = self._config.stopWordSource
 
-        self._sequenceLength = self._config.SequenceLength  # 每条输入的序列处理为定长
+        self._sequenceLength = self._config.sequenceLength  # 每条输入的序列处理为定长
         self._embeddingSize = self._config.model.embeddingSize
         self._batchSize = self._config.batchSize
         self._rate = self._config.rate
@@ -155,7 +155,6 @@ class DataSet:
                 wordEmbedding.append(vector) #把存在的词向量加进去
             except:
                 print(word +"不在词向量中")
-
         return vocab,np.array(wordEmbedding)
 
     def _readStopWord(self,stopWordPath):
@@ -200,7 +199,7 @@ class DataSet:
             start = i * batchSize
             end = start + batchSize
             batchX = np.array(x[start:end],dtype="int64")
-            batchY = np.array(x[start:end], dtype="float32")
+            batchY = np.array(y[start:end], dtype="float32")
             yield batchX ,batchY
 
     # 定义性能指标函数
