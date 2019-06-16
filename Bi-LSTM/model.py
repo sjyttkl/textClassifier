@@ -6,7 +6,8 @@
    email:         695492835@qq.com
    Author :       sjyttkl
    date：          2019/5/26
-   Description :  Bi-Lstm 情感分析
+   Description :  Bi-Lstm 情感分析 https://www.jiqizhixin.com/articles/2018-10-24-13?from=synced&keyword=bi-lstm,
+                pdf:Attention-Based Bidirectional Long Short-Term Memory Networks for  Relation Classification
 ==================================================
 """
 __author__ = 'sjyttkl'
@@ -21,7 +22,7 @@ class BiLstm:
         self.input_x = tf.placeholder(tf.int32,[None,config.sequenceLength],name="input_x")
         self.input_y = tf.placeholder(tf.float32,[None,1],name="input_y")
         self.dropoutKeepProb =tf.placeholder(tf.float32,name="dropoutKeepProb")
-
+        self.config = config
         # 定义l2损失
         l2_loss = tf.constant(0.0)
 
@@ -44,22 +45,21 @@ class BiLstm:
                     # outputs是一个元祖(output_fw, output_bw)，其中两个元素的维度都是[batch_size, max_time, hidden_size],fw和bw的hidden_size一样
                     # self.current_state 是最终的状态，二元组(state_fw, state_bw)，state_fw=[batch_size, s]，s是一个元祖(h(hidden state), c(memory cell))
                     outputs,self.current_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=lstmFwCell,cell_bw=lstmBwCell,inputs=self.embeddedWords,dtype=tf.float32,
-                                                                                 scope="bi-lstm" + str(idx),time_major=False)#(?,200,256)
-                    # 对outputs中的fw和bw的结果拼接 [batch_size, time_step, hidden_size * 2]
+                                                                                 scope="bi-lstm_" + str(idx),time_major=False)#(?,200,256)
+                    # 对outputs中的fw和bw的结果拼接 [batch_size, time_step, hidden_size * 2]  其实，中间的time-step 可以当做为 embeddingSize
                     self.embeddedWords = tf.concat(outputs, 2)  #因为是情感分类，所以需要对输出的结果进行拼接。 #(?,200,512)
-
-        # 取出最后时间步的输出作为全连接的输入。对于情感类的分类问题，需要一句话全局特征，所以只需要最后一步的效果即可。
-        finalOutput = self.embeddedWords[:,-1,:] #(?,512)
-        outputSize = config.model.hiddenSizes[-1] *2  # 因为是双向LSTM，最终的输出值是fw和bw的拼接，因此要乘以2   [256*256][-1] *2 = 512
-        output = tf.reshape(finalOutput,[-1,outputSize])   # reshape成全连接层的输入维度#(?,512)
+                # 取出最后时间步的输出作为全连接的输入。对于情感类的分类问题，需要一句话全局特征，所以只需要最后一步的效果即可。
+        finalOutput = self.embeddedWords[:, -1, :]  # (?,512)
+        outputSize = config.model.hiddenSizes[-1] * 2  # 因为是双向LSTM，最终的输出值是fw和bw的拼接，因此要乘以2   [256*256][-1] *2 = 512
+        output = tf.reshape(finalOutput, [-1, outputSize])  # reshape成全连接层的输入维度#(?,512)
 
         #全连接层的输出
         with tf.name_scope("output"):
             outputW = tf.get_variable("outputW",shape=[outputSize,1],initializer=tf.contrib.layers.xavier_initializer())
-            biase = tf.Variable(tf.constant(0.1,shape=[1],name="bais"))
+            bias = tf.Variable(tf.constant(0.1,shape=[1],name="bais"))
             l2_loss += tf.nn.l2_loss(outputW)
-            l2_loss += tf.nn.l2_loss(biase)
-            self.predictions = tf.nn.xw_plus_b(output,outputW,biase,name="predictions")#(?,1)
+            l2_loss += tf.nn.l2_loss(bias)
+            self.predictions = tf.nn.xw_plus_b(output,outputW,bias,name="predictions")#(?,1)
             self.binaryPreds = tf.cast(tf.greater_equal(self.predictions,0.5),tf.float32,name="binaryPreds")#(?,1) #返回 bool类型并转换成 数值类型.False:0,True:1
 
         # 计算二元交叉熵损失
