@@ -13,7 +13,7 @@ __author__ = 'sjyttkl'
 
 import tensorflow as tf
 
-class BiLstm:
+class BiLstm_Attention:
     """
     Bi-lstm 情感分析（文本分类）
     """
@@ -33,7 +33,7 @@ class BiLstm:
         # 定义两层双向LSTM的模型结构
         with tf.name_scope("Bi-LSTM"):
             for idx,hiddenSize in enumerate(config.model.hiddenSizes):
-                with tf.name_scope("Bi-LSTM" + str(idx)):
+                with tf.name_scope("Bi-LSTM-" + str(idx)):
                     # 定义前向LSTM结构
                     lstmFwCell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.LSTMCell(num_units=hiddenSize,state_is_tuple=True),output_keep_prob=self.dropoutKeepProb)
                     # 定义反向LSTM结构
@@ -49,10 +49,10 @@ class BiLstm:
                     self.embeddedWords = tf.concat(outputs, 2)  #因为是情感分类，所以需要对输出的结果进行拼接。 #(?,200,512)
 
         # 将最后一层Bi-LSTM输出的结果分割成前向和后向的输出，因为上面已经tf.concat(outputs,2)，这次需要分开
-        outputs = tf.split(self.embeddedWords, 2, -1)
+        outputs = tf.split(self.embeddedWords, 2, 2)#(?,200,256)  (?,200,256)
         # 在Bi-LSTM+Attention的论文中，将前向和后向的输出相加
         with tf.name_scope("Attention"):
-            H = outputs[0] + outputs[1]
+            H = outputs[0] + outputs[1]  #只是相对位置，相加sum
             # 得到输出的Attention
             output = self.attention(H)
             outputSize = config.model.hiddenSizes[-1]
@@ -81,30 +81,30 @@ class BiLstm:
        利用Attention机制得到句子的向量表示
        """
         # 获得最后一层LSTM的神经元数量
-        hiddenSize = self.config.model.hiddenSizes[-1]
+        hiddenSize = self.config.model.hiddenSizes[-1] # 256
 
         # 初始化一个权重向量，是可训练的参数
-        W = tf.Variable(tf.random_normal([hiddenSize], stddev=0.1))
+        W = tf.Variable(tf.random_normal([hiddenSize], stddev=0.1)) #(256,)
 
         # 对Bi-LSTM的输出用激活函数做非线性转换
-        M = tf.tanh(H)
+        M = tf.tanh(H)   #(?,200,256) M 的 shape和 H 的shape 是一样的。
 
-        # 对W和M做矩阵运算，W=[batch_size, time_step, hidden_size]，计算前做维度转换成[batch_size * time_step, hidden_size]
-        # newM = [batch_size, time_step, 1]，每一个时间步的输出由向量转换成一个数字
-        newM = tf.matmul(tf.reshape(M, [-1, hiddenSize]), tf.reshape(W, [-1, 1]))
-
+        # 对M做矩阵运算，M=[batch_size, time_step, hidden_size]，计算前做维度转换成[batch_size * time_step, hidden_size]，把（?,200,256）转换成（?*200，256）
+        # 对W做 reshape,  (256,) 转换成：（256,1）
+        # newM = [batch_size * time_step, 1]，每一个时间步的输出由向量转换成一个数字
+        newM = tf.matmul(tf.reshape(M, [-1, hiddenSize]), tf.reshape(W, [-1, 1]))#（?*200，256）* （256,1） = (?*200,1)
         # 对newM做维度转换成[batch_size, time_step]
-        restoreM = tf.reshape(newM, [-1, self.config.sequenceLength])
+        restoreM = tf.reshape(newM, [-1, self.config.sequenceLength])#(?,200)
 
         # 用softmax做归一化处理[batch_size, time_step]
-        self.alpha = tf.nn.softmax(restoreM)
+        self.alpha = tf.nn.softmax(restoreM) #(?,200)
 
-        # 利用求得的alpha的值对H进行加权求和，用矩阵运算直接操作
-        r = tf.matmul(tf.transpose(H, [0, 2, 1]), tf.reshape(self.alpha, [-1, self.config.sequenceLength, 1]))
-
+        # 利用求得的alpha的值对H进行加权求和，用矩阵运算直接操作,transpose（H,[0,2,1]),维度交换，注意列表里的位置
+        r = tf.matmul(tf.transpose(H, [0, 2, 1]), tf.reshape(self.alpha, [-1, self.config.sequenceLength, 1])) #r
+                      #把H(?,200,256)  转换成：(?,256,200)  ,   把alpha(?,200)转换成(?,200,1)   ,r 最终转换成的shape（？,256,1）
         # 将三维压缩成二维sequeezeR=[batch_size, hidden_size]
-        sequeezeR = tf.squeeze(r)
-
+        sequeezeR = tf.squeeze(r) #(?) #默认，从tensor中删除所有大小是1的维度，给定张量输入，此操作返回相同类型的张量，并删除所有尺寸为1的尺寸。 如果不想删除所有尺寸1尺寸，可以通过指定squeeze_dims来删除特定维度。
+                                       #剔除一维，保留其他维度。（？,256）
         sentenceRepren = tf.tanh(sequeezeR)
 
         # 对Attention的输出可以做dropout处理

@@ -42,12 +42,12 @@ class Train:
 
             #定义会话
             with sess.as_default():
-                lstm = model.BiLstm(self._config,wordEmbedding=self.wordEmbedding)
+                lstm_attention = model.BiLstm_Attention(self._config,wordEmbedding=self.wordEmbedding)
                 global_step = tf.Variable(0,name="gloal_step",trainable=False)
                 # 定义优化函数，传入学习速率参数
                 optimizer = tf.train.AdamOptimizer(self._config.training.learningRate)
                 #计算梯度，得到梯度和变量
-                grads_vars = optimizer.compute_gradients(lstm.loss)
+                grads_vars = optimizer.compute_gradients(lstm_attention.loss)
                 # 将梯度应用到变量下，生成训练器
                 train_op = optimizer.apply_gradients(grads_and_vars=grads_vars,global_step=global_step)
                 # 用summary绘制tensorBoard
@@ -64,8 +64,8 @@ class Train:
                 out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))  # 绝对路径制作
                 print("Writing to {}\n".format(out_dir))
 
-                loss_summary = tf.summary.scalar("loss",lstm.loss)
-                acc_summary = tf.summary.scalar("accuracy", lstm.accuracy)
+                loss_summary = tf.summary.scalar("loss",lstm_attention.loss)
+                acc_summary = tf.summary.scalar("accuracy", lstm_attention.accuracy)
 
                 # Train Summaries
                 train_summary_op = tf.summary.merge([loss_summary, acc_summary, grad_summaries_merged]) #summaryOp = tf.summary.merge_all()
@@ -91,12 +91,12 @@ class Train:
                 sess.run(tf.global_variables_initializer())
                 def train_step(batchX,batchY):
                     feed_dict={
-                        lstm.input_x:batchX,
-                        lstm.input_y:batchY,
-                        lstm.dropoutKeepProb : self._config.model.dropoutKeepProb
+                        lstm_attention.input_x:batchX,
+                        lstm_attention.input_y:batchY,
+                        lstm_attention.dropoutKeepProb : self._config.model.dropoutKeepProb
                     }
                     _, summary, step, loss,accuracy, predictions, binaryPreds = sess.run(
-                        [train_op, train_summary_op, global_step, lstm.loss,lstm.accuracy, lstm.predictions, lstm.binaryPreds],
+                        [train_op, train_summary_op, global_step, lstm_attention.loss,lstm_attention.accuracy, lstm_attention.predictions, lstm_attention.binaryPreds],
                         feed_dict)
                     timeStr = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())#datetime.datetime.now().isoformat()
                     acc, auc, precision, recall = data_helper.genMetrics(batchY, predictions, binaryPreds)
@@ -110,13 +110,13 @@ class Train:
                     验证函数
                     """
                     feed_dict = {
-                        lstm.input_x: batchX,
-                        lstm.input_y: batchY,
-                        lstm.dropoutKeepProb: 1.0
+                        lstm_attention.input_x: batchX,
+                        lstm_attention.input_y: batchY,
+                        lstm_attention.dropoutKeepProb: 1.0
                     }
                     summary, step, loss, accuracy, predictions, binaryPreds = sess.run(
-                        [ dev_summary_op, global_step, lstm.loss, lstm.accuracy, lstm.predictions,
-                         lstm.binaryPreds],
+                        [ dev_summary_op, global_step, lstm_attention.loss, lstm_attention.accuracy, lstm_attention.predictions,
+                          lstm_attention.binaryPreds],
                         feed_dict)
                     timeStr = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())#datetime.datetime.now().isoformat()
                     acc, auc, precision, recall = data_helper.genMetrics(batchY, predictions, binaryPreds)
