@@ -6,7 +6,7 @@
    email:         695492835@qq.com
    Author :       sjyttkl
    date：          2019/5/26
-   Description :  adversarialLstm  情感分析 https://www.cnblogs.com/jiangxinyang/p/10208363.html
+   Description :  adversarialLstm  情感分析 https://www.cnblogs.com/jiangxinyang/p/10208363.html   论文：https://arxiv.org/pdf/1605.07725.pdf
 ==================================================
 """
 __author__ = 'sjyttkl'
@@ -30,7 +30,7 @@ class AdversarialLSTM(object):
 
         # 根据词的频率计算权重
         indexFreqs[0], indexFreqs[1] = 20000, 10000
-        weights = tf.cast(tf.reshape(indexFreqs / tf.reduce_sum(indexFreqs), [1, len(indexFreqs)]), dtype=tf.float32)
+        weights = tf.cast(tf.reshape(indexFreqs / tf.reduce_sum(indexFreqs), [1, len(indexFreqs)]), dtype=tf.float32)#这里是把 对indexFreqs进行了归一化，并且转成（1，28604）
 
         # 词嵌入层
         with tf.name_scope("embedding"):
@@ -57,7 +57,7 @@ class AdversarialLSTM(object):
 
         self.loss = loss + perturLoss
 
-    def _Bi_LSTMAttention(self, embeddedWords):
+    def _Bi_LSTMAttention(self,embeddedWords):
         """
         Bi-LSTM + Attention 的模型结构
         """
@@ -76,11 +76,14 @@ class AdversarialLSTM(object):
                 output_keep_prob=self.dropoutKeepProb)
 
             # 采用动态rnn，可以动态的输入序列的长度，若没有输入，则取序列的全长
+            # embeddedWords为输入的tensor，[batch_szie, max_time,depth]。batch_size为模型当中batch的大小，应用在文本中时，max_time可以为句子的长度（一般以最长的句子为准，短句需要做padding），depth为输入句子词向量的维度。
+            # time_major 决定了输入输出tensor的格式：如果为true, 向量的形状必须为 `[max_time, batch_size, depth]`.如果为false, tensor的形状必须为`[batch_size, max_time, depth]`.
             # outputs是一个元祖(output_fw, output_bw)，其中两个元素的维度都是[batch_size, max_time, hidden_size],fw和bw的hidden_size一样
-            # self.current_state 是最终的状态，二元组(state_fw, state_bw)，state_fw=[batch_size, s]，s是一个元祖(h, c)
-            outputs, self.current_state = tf.nn.bidirectional_dynamic_rnn(lstmFwCell, lstmBwCell,
-                                                                          self.embeddedWords, dtype=tf.float32,
-                                                                          scope="bi-lstm")
+            # self.current_state 是最终的状态，二元组(state_fw, state_bw)，state_fw=[batch_size, s]，s是一个元祖(h(hidden state), c(memory cell))
+            outputs, self.current_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=lstmFwCell, cell_bw=lstmBwCell,
+                                                                          inputs=embeddedWords, dtype=tf.float32,
+                                                                          scope="bi-lstm",
+                                                                          time_major=False)  # (?,200,256)
 
         # 在Bi-LSTM+Attention的论文中，将前向和后向的输出相加
         with tf.name_scope("Attention"):
@@ -143,15 +146,15 @@ class AdversarialLSTM(object):
         对word embedding 结合权重做标准化处理
         """
 
-        mean = tf.matmul(weights, wordEmbedding)
+        mean = tf.matmul(weights, wordEmbedding)  # 结果维度：（1,28604）*（28604,200） = （1，200）#均值
         print(mean)
-        powWordEmbedding = tf.pow(wordEmbedding - mean, 2.)
+        powWordEmbedding = tf.pow(wordEmbedding - mean, 2.) #（28604,200）
 
-        var = tf.matmul(weights, powWordEmbedding)
+        var = tf.matmul(weights, powWordEmbedding)  #（1,28604）*（28604,200）= （1，200)  #方差
         print(var)
-        stddev = tf.sqrt(1e-6 + var)
+        stddev = tf.sqrt(1e-6 + var)#标准差,这里的1e-6 是为了防止为零
 
-        return (wordEmbedding - mean) / stddev
+        return (wordEmbedding - mean) / stddev #这里返回的就是 标准化后的 embedding（28604,200）
 
     def _addPerturbation(self, embedded, loss):
         """

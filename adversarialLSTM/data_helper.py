@@ -165,14 +165,14 @@ class DataSet:
         """
         统计词汇空间中各个词出现在多少个文本中
         """
-        reviewDicts = [dict(zip(review, range(len(review)))) for review in reviews]
-        indexFreqs = [0] * len(vocab)
+        reviewDicts = [dict(zip(review, range(len(review)))) for review in reviews]#这里是产生一个字典：一个 word: index(这个index是最后一次出现的位置)
+        indexFreqs = [0] * len(vocab)  #词表长度
         for word in vocab:
             count = 0
             for review in reviewDicts:
                 if word in review:
                     count += 1
-            indexFreqs[self._wordToIndex[word]] = count
+            indexFreqs[self._wordToIndex[word]] = count #这里返回的就是  一个字典：id：文本数
 
         self.indexFreqs = indexFreqs
     def _readStopWord(self,stopWordPath):
@@ -236,7 +236,7 @@ def genMetrics(trueY, predY, binaryPredY):
     return round(accuracy, 4), round(auc, 4), round(precision, 4), round(recall, 4)
 
 if __name__ == "__main__":
-    data = DataSet(config)
+    data = DataSet(config.Config())
     data.dataGen()
 
     print("train data shape: {}".format(data.trainReviews.shape))
