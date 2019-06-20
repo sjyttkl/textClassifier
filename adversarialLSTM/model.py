@@ -6,7 +6,7 @@
    email:         695492835@qq.com
    Author :       sjyttkl
    date：          2019/5/26
-   Description :  Bi-Lstm 情感分析 https://www.jiqizhixin.com/articles/2018-10-24-13?from=synced&keyword=bi-lstm
+   Description :  adversarialLstm  情感分析 https://www.cnblogs.com/jiangxinyang/p/10208363.html
 ==================================================
 """
 __author__ = 'sjyttkl'
