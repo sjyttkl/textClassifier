@@ -22,13 +22,13 @@ class TrainConfig:
 
 class ModelConfig:
     embeddingSize = 200
-    hiddenSizes = [256,256]
+    hiddenSizes = 128  ## LSTM结构的神经元个数
     dropoutKeepProb = 0.5
     l2RegLambda = 0.0
-
+    epsilon = 5
 class Config:
     sequenceLength = 200
-    batchSize = 138
+    batchSize = 128
     dataSource = "../data/preProcess/labeledTrain.csv"
     stopWordSource = "../data/english"
     numClasses = 2

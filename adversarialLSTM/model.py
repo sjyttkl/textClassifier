@@ -44,9 +44,9 @@ class AdversarialLSTM(object):
         with tf.name_scope("loss"):
             with tf.variable_scope("Bi-LSTM", reuse=None):
                 self.predictions = self._Bi_LSTMAttention(self.embeddedWords)
-                self.binaryPreds = tf.cast(tf.greater_equal(self.predictions, 0.5), tf.float32, name="binaryPreds")
-                losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.predictions, labels=self.inputY)
-                loss = tf.reduce_mean(losses)
+                self.binaryPreds = tf.cast(tf.greater_equal(self.predictions, 0.5), tf.float32, name="binaryPreds")#直接输出二分类的结果了
+                losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.predictions, labels=self.inputY) #交叉熵
+                loss = tf.reduce_mean(losses) #进行平均交叉熵
 
         with tf.name_scope("perturLoss"):
             with tf.variable_scope("Bi-LSTM", reuse=True):
@@ -67,8 +67,7 @@ class AdversarialLSTM(object):
         # 定义双向LSTM的模型结构
         with tf.name_scope("Bi-LSTM"):
             # 定义前向LSTM结构
-            lstmFwCell = tf.nn.rnn_cell.DropoutWrapper(
-                tf.nn.rnn_cell.LSTMCell(num_units=config.model.hiddenSizes, state_is_tuple=True),
+            lstmFwCell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.LSTMCell(num_units=config.model.hiddenSizes, state_is_tuple=True),
                 output_keep_prob=self.dropoutKeepProb)
             # 定义反向LSTM结构
             lstmBwCell = tf.nn.rnn_cell.DropoutWrapper(
@@ -156,15 +155,17 @@ class AdversarialLSTM(object):
 
         return (wordEmbedding - mean) / stddev #这里返回的就是 标准化后的 embedding（28604,200）
 
+    #一般对抗损失，（还存在随机对抗损失、虚拟对抗损失)，对抗扰动（Adversarial perturbation）
     def _addPerturbation(self, embedded, loss):
         """
-        添加波动到word embedding
+        添加扰动到word embedding
         """
         grad, = tf.gradients(
             loss,
             embedded,
-            aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N)
-        grad = tf.stop_gradient(grad)
+            aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N) #这里的tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N会大大节省内存
+        grad = tf.stop_gradient(grad)#(?,200,200)
+        #是一个tensor或tensor的列表，所有关于xs作为常量（constant），这些tensor不会被反向传播，仿佛它们已经被使用stop_gradients 显式地断开。除此之外，这允许计算偏导数，而不是全导数。
         perturb = self._scaleL2(grad, self.config.model.epsilon)
         return embedded + perturb
 
@@ -173,8 +174,7 @@ class AdversarialLSTM(object):
         # Divide x by max(abs(x)) for a numerically stable L2 norm.
         # 2norm(x) = a * 2norm(x/a)
         # Scale over the full sequence, dims (1, 2)
-        alpha = tf.reduce_max(tf.abs(x), (1, 2), keepdims=True) + 1e-12
-        l2_norm = alpha * tf.sqrt(
-            tf.reduce_sum(tf.pow(x / alpha, 2), (1, 2), keepdims=True) + 1e-6)
+        alpha = tf.reduce_max(tf.abs(x), (1, 2), keepdims=True) + 1e-12# x:(?,200,200),  结果为：(?,1,1)
+        l2_norm = alpha * tf.sqrt(tf.reduce_sum(tf.pow(x / alpha, 2), (1, 2), keepdims=True) + 1e-6) #sqrt 平方根，这里收到的 l2_正则
         x_unit = x / l2_norm
         return norm_length * x_unit
