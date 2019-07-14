@@ -7,6 +7,11 @@
    Author :       sjyttkl
    date：          2019/5/26
    Description :  adversarialLstm  情感分析 https://www.cnblogs.com/jiangxinyang/p/10208363.html   论文：https://arxiv.org/pdf/1605.07725.pdf
+   url = https://zhuanlan.zhihu.com/p/31920187?edition=yidianzixun&utm_source=yidianzixun&yidian_docid=0Huo7yy2
+   这篇文章的核心思想：通过 Goodfellow 提出的 Fast Gradient Sign Method (FGSM) 来计算出扰动，
+   添加到到连续的 Word Embedding 上产生 X_adv, 再一次喂给 model，得到 Adversarial Loss，
+   通过和原来的 Classification Loss（Cross-Entropy）做一个相加得到新的 Loss。
+   通过优化这个 Loss，能够在文本分类任务上取得超过目前 State-of-art 的表现。
 ==================================================
 """
 __author__ = 'sjyttkl'
@@ -22,8 +27,8 @@ class AdversarialLSTM(object):
 
     def __init__(self, config, wordEmbedding, indexFreqs):
         # 定义模型的输入
-        self.inputX = tf.placeholder(tf.int32, [None, config.sequenceLength], name="inputX")
-        self.inputY = tf.placeholder(tf.float32, [None, 1], name="inputY")
+        self.input_x = tf.placeholder(tf.int32, [None, config.sequenceLength], name="inputX")
+        self.input_y = tf.placeholder(tf.float32, [None, 1], name="inputY")
 
         self.dropoutKeepProb = tf.placeholder(tf.float32, name="dropoutKeepProb")
         self.config = config
@@ -35,24 +40,23 @@ class AdversarialLSTM(object):
         # 词嵌入层
         with tf.name_scope("embedding"):
             # 利用词频计算新的词嵌入矩阵
-            normWordEmbedding = self._normalize(tf.cast(wordEmbedding, dtype=tf.float32, name="word2vec"), weights)
-
+            normWordEmbedding = self._normalize(tf.cast(wordEmbedding, dtype=tf.float32, name="word2vec"), weights)#(28640,200) #这里返回的是标准化后的wordembedd
             # 利用词嵌入矩阵将输入的数据中的词转换成词向量，维度[batch_size, sequence_length, embedding_size]
-            self.embeddedWords = tf.nn.embedding_lookup(normWordEmbedding, self.inputX)
+            self.embeddedWords = tf.nn.embedding_lookup(normWordEmbedding, self.input_x)#（？,200,200） #这里是加入  扰动样本
 
         # 计算二元交叉熵损失
         with tf.name_scope("loss"):
             with tf.variable_scope("Bi-LSTM", reuse=None):
-                self.predictions = self._Bi_LSTMAttention(self.embeddedWords)
-                self.binaryPreds = tf.cast(tf.greater_equal(self.predictions, 0.5), tf.float32, name="binaryPreds")#直接输出二分类的结果了
-                losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.predictions, labels=self.inputY) #交叉熵
+                self.predictions = self._Bi_LSTMAttention(self.embeddedWords)#(?,1)
+                self.binaryPreds = tf.cast(tf.greater_equal(self.predictions, 0.5), tf.float32, name="binaryPreds")# tf.greater_equal ====(x > = y) ,直接输出二分类的结果了
+                losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.predictions, labels=self.input_y) #交叉熵
                 loss = tf.reduce_mean(losses) #进行平均交叉熵
 
         with tf.name_scope("perturLoss"):
             with tf.variable_scope("Bi-LSTM", reuse=True):
-                perturWordEmbedding = self._addPerturbation(self.embeddedWords, loss)
+                perturWordEmbedding = self._addPerturbation(self.embeddedWords, loss) #加入扰动的 损失函数
                 perturPredictions = self._Bi_LSTMAttention(perturWordEmbedding)
-                perturLosses = tf.nn.sigmoid_cross_entropy_with_logits(logits=perturPredictions, labels=self.inputY)
+                perturLosses = tf.nn.sigmoid_cross_entropy_with_logits(logits=perturPredictions, labels=self.input_y)
                 perturLoss = tf.reduce_mean(perturLosses)
 
         self.loss = loss + perturLoss
@@ -162,7 +166,7 @@ class AdversarialLSTM(object):
         """
         grad, = tf.gradients(
             loss,
-            embedded,
+            embedded,#(?,200,200)
             aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N) #这里的tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N会大大节省内存
         grad = tf.stop_gradient(grad)#(?,200,200)
         #是一个tensor或tensor的列表，所有关于xs作为常量（constant），这些tensor不会被反向传播，仿佛它们已经被使用stop_gradients 显式地断开。除此之外，这允许计算偏导数，而不是全导数。
@@ -176,5 +180,5 @@ class AdversarialLSTM(object):
         # Scale over the full sequence, dims (1, 2)
         alpha = tf.reduce_max(tf.abs(x), (1, 2), keepdims=True) + 1e-12# x:(?,200,200),  结果为：(?,1,1)
         l2_norm = alpha * tf.sqrt(tf.reduce_sum(tf.pow(x / alpha, 2), (1, 2), keepdims=True) + 1e-6) #sqrt 平方根，这里收到的 l2_正则
-        x_unit = x / l2_norm
+        x_unit = x / l2_norm  #(?,200,200)
         return norm_length * x_unit

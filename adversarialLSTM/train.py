@@ -65,15 +65,15 @@ class Train:
                 print("Writing to {}\n".format(out_dir))
 
                 loss_summary = tf.summary.scalar("loss",adver_lstm.loss)
-                acc_summary = tf.summary.scalar("accuracy", adver_lstm.accuracy)
+                #acc_summary = tf.summary.scalar("accuracy", adver_lstm.accuracy)
 
                 # Train Summaries
-                train_summary_op = tf.summary.merge([loss_summary, acc_summary, grad_summaries_merged]) #summaryOp = tf.summary.merge_all()
+                train_summary_op = tf.summary.merge([loss_summary,  grad_summaries_merged]) #summaryOp = tf.summary.merge_all()
                 train_summary_dir = os.path.join(out_dir, "summaries", "train")
                 train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
                 # Dev summaries
-                dev_summary_op = tf.summary.merge([loss_summary, acc_summary])
+                dev_summary_op = tf.summary.merge([loss_summary,])
                 dev_summary_dir = os.path.join(out_dir, "summaries", "dev")
                 dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
                 # Checkpoint directory. Tensorflow assumes this directory already exists so we need to create it
@@ -95,13 +95,13 @@ class Train:
                         adver_lstm.input_y:batchY,
                         adver_lstm.dropoutKeepProb : self._config.model.dropoutKeepProb
                     }
-                    _, summary, step, loss,accuracy, predictions, binaryPreds = sess.run(
-                        [train_op, train_summary_op, global_step, adver_lstm.loss,adver_lstm.accuracy, adver_lstm.predictions, adver_lstm.binaryPreds],
+                    _, summary, step, loss, predictions, binaryPreds = sess.run(
+                        [train_op, train_summary_op, global_step, adver_lstm.loss, adver_lstm.predictions, adver_lstm.binaryPreds],
                         feed_dict)
                     timeStr = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())#datetime.datetime.now().isoformat()
                     acc, auc, precision, recall = data_helper.genMetrics(batchY, predictions, binaryPreds)
-                    print("train ..{}, step: {}, loss: {},accuracy: {},  acc: {}, auc: {}, precision: {}, recall: {}".format(timeStr, step,
-                                                                                                       loss,accuracy, acc, auc,
+                    print("train ..{}, step: {}, loss: {},  acc: {}, auc: {}, precision: {}, recall: {}".format(timeStr, step,
+                                                                                                       loss, acc, auc,
                                                                                                        precision,
                                                                                                        recall))
                     train_summary_writer.add_summary(summary, step)
@@ -114,15 +114,15 @@ class Train:
                         adver_lstm.input_y: batchY,
                         adver_lstm.dropoutKeepProb: 1.0
                     }
-                    summary, step, loss, accuracy, predictions, binaryPreds = sess.run(
-                        [ dev_summary_op, global_step, adver_lstm.loss, adver_lstm.accuracy, adver_lstm.predictions,
+                    summary, step, loss,  predictions, binaryPreds = sess.run(
+                        [ dev_summary_op, global_step, adver_lstm.loss,  adver_lstm.predictions,
                           adver_lstm.binaryPreds],
                         feed_dict)
                     timeStr = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())#datetime.datetime.now().isoformat()
                     acc, auc, precision, recall = data_helper.genMetrics(batchY, predictions, binaryPreds)
-                    print("dev ..{}, step: {}, loss: {},accuracy: {},  acc: {}, auc: {}, precision: {}, recall: {}".format(
+                    print("dev ..{}, step: {}, loss: {},  acc: {}, auc: {}, precision: {}, recall: {}".format(
                         timeStr, step,
-                        loss, accuracy, acc, auc,
+                        loss,  acc, auc,
                         precision,
                         recall))
                     dev_summary_writer.add_summary(summary, step)
