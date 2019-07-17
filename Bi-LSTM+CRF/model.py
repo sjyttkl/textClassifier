@@ -17,7 +17,7 @@ import numpy as np
 
 class BiLstm:
     """
-    Bi-lstm 情感分析（文本分类）
+    Bi-lstm 序列标注问题
     """
     def __init__(self,config,wordEmbedding):
         self.input_x = tf.placeholder(tf.int32,[None,config.sequenceLength],name="input_x")
@@ -47,12 +47,12 @@ class BiLstm:
                     # self.current_state 是最终的状态，二元组(state_fw, state_bw)，state_fw=[batch_size, s]，s是一个元祖(h(hidden state), c(memory cell))
                     outputs,self.current_state = tf.nn.bidirectional_dynamic_rnn(cell_fw=lstmFwCell,cell_bw=lstmBwCell,inputs=self.embeddedWords,dtype=tf.float32,
                                                                                  scope="bi-lstm_" + str(idx),time_major=False)#(?,200,256)
-                    # 对outputs中的fw和bw的结果拼接 [batch_size, time_step, hidden_size * 2]  其实，中间的time-step 可以当做为 embeddingSize
+                    # 对outputs中的fw和bw的结果拼接 [batch_size, time_step, hidden_size * 2]  其实，中间的time-step 可以当做为 sequenceLength
                     self.embeddedWords = tf.concat(outputs, 2)  #因为是情感分类，所以需要对输出的结果进行拼接。 #(?,200,512)
                 # 取出最后时间步的输出作为全连接的输入。对于情感类的分类问题，需要一句话全局特征，所以只需要最后一步的效果即可。
-        finalOutput = self.embeddedWords[:, -1, :]  # (?,512)
+        # finalOutput = self.embeddedWords[:, -1, :]  # (?,512)
         outputSize = config.model.hiddenSizes[-1] * 2  # 因为是双向LSTM，最终的输出值是fw和bw的拼接，因此要乘以2   [256*256][-1] *2 = 512
-        output = tf.reshape(finalOutput, [-1, outputSize])  # reshape成全连接层的输入维度#(?,512)
+        # output = tf.reshape(finalOutput, [-1, outputSize])  # reshape成全连接层的输入维度#(?,512)
 
         #全连接层的输出
         with tf.name_scope("output"):
