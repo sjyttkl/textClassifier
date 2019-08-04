@@ -15,9 +15,10 @@ import pandas as pd
 import tensorflow as tf
 
 class TrainConfig:
-    epoches =10
-    evaluateEvery = 10  #100
-    checkpointEvery = 10 #100
+    epoches = 10
+    evaluateEvery = 100
+    checkpointEvery = 100
+    learningRate = 0.001
 
 class ModelConfig(object):
     embeddingSize = 200
