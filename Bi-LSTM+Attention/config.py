@@ -22,7 +22,7 @@ class TrainConfig:
 
 class ModelConfig:
     embeddingSize = 200
-    hiddenSizes = [256,256]
+    hiddenSizes = [256,128]
     dropoutKeepProb = 0.5
     l2RegLambda = 0.0
 
