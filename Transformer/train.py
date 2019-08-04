@@ -28,7 +28,7 @@ class Train:
         self.trainLabels = self._data.trainLabels
         self.evalReviews = self._data.evalReviews
         self.evalLabels = self._data.evalLabels
-
+        self.embeddedPosition = data_helper.fixedPositionEmbedding(self._data._config.batchSize, self._data._config.sequenceLength)
         self.wordEmbedding = self._data.wordEmbedding
     # 定义计算图
     def train(self):
@@ -93,6 +93,7 @@ class Train:
                     feed_dict={
                         transformer.input_x:batchX,
                         transformer.input_y:batchY,
+                        transformer.embeddedPosition: self.embeddedPosition,
                         transformer.dropoutKeepProb : self._config.model.dropoutKeepProb
                     }
                     _, summary, step, loss,accuracy, predictions, binaryPreds = sess.run(
@@ -112,6 +113,7 @@ class Train:
                     feed_dict = {
                         transformer.input_x: batchX,
                         transformer.input_y: batchY,
+                        transformer.embeddedPosition: self.embeddedPosition,
                         transformer.dropoutKeepProb: 1.0
                     }
                     summary, step, loss, accuracy, predictions, binaryPreds = sess.run(

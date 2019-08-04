@@ -24,8 +24,8 @@ class Transformer(object):
     def __init__(self, config, wordEmbedding):
 
         # 定义模型的输入
-        self.inputX = tf.placeholder(tf.int32, [None, config.sequenceLength], name="inputX")
-        self.inputY = tf.placeholder(tf.float32, [None, 1], name="inputY")
+        self.input_x = tf.placeholder(tf.int32, [None, config.sequenceLength], name="inputX")
+        self.input_y = tf.placeholder(tf.float32, [None, 1], name="inputY")
 
         self.dropoutKeepProb = tf.placeholder(tf.float32, name="dropoutKeepProb")
         self.embeddedPosition = tf.placeholder(tf.float32, [None, config.sequenceLength, config.sequenceLength],
@@ -43,7 +43,7 @@ class Transformer(object):
             # 利用预训练的词向量初始化词嵌入矩阵
             self.W = tf.Variable(tf.cast(wordEmbedding, dtype=tf.float32, name="word2vec"), name="W")
             # 利用词嵌入矩阵将输入的数据中的词转换成词向量，维度[batch_size, sequence_length, embedding_size]
-            self.embedded = tf.nn.embedding_lookup(self.W, self.inputX)
+            self.embedded = tf.nn.embedding_lookup(self.W, self.input_x)
             self.embeddedWords = tf.concat([self.embedded, self.embeddedPosition], -1)
 
         with tf.name_scope("transformer"):
@@ -104,8 +104,12 @@ class Transformer(object):
 
         # 计算二元交叉熵损失
         with tf.name_scope("loss"):
-            losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.predictions, labels=self.inputY)
+            losses = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.predictions, labels=self.input_y)
             self.loss = tf.reduce_mean(losses) + config.model.l2RegLambda * l2Loss
+            # Accuracy
+        with tf.name_scope("accuracy"):
+            correct_predictions = tf.equal(self.binaryPreds, self.input_y)  # (?,1)  返回是bool类型
+            self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
 
     def _layerNormalization(self, inputs, scope="layerNorm"):
         # LayerNorm层和BN层有所不同
