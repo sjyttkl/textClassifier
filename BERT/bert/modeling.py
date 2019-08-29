@@ -488,8 +488,9 @@ def embedding_postprocessor(input_tensor,  # [batch_size, seq_length, embedding_
     token_type_embeddings = tf.reshape(token_type_embeddings,
                                        [batch_size, seq_length, width])
     output += token_type_embeddings
-
+    # Position embedding信息
   if use_position_embeddings:
+      # 确保seq_length小于等于max_position_embeddings
     assert_op = tf.assert_less_equal(seq_length, max_position_embeddings)
     with tf.control_dependencies([assert_op]):
       full_position_embeddings = tf.get_variable(
@@ -505,6 +506,9 @@ def embedding_postprocessor(input_tensor,  # [batch_size, seq_length, embedding_
       # for position [0, 1, 2, ..., max_position_embeddings-1], and the current
       # sequence has positions [0, 1, 2, ... seq_length-1], so we can just
       # perform a slice.
+      # 这里position embedding是可学习的参数，[max_position_embeddings, width]
+      # 但是通常实际输入序列没有达到max_position_embeddings
+      # 所以为了提高训练速度，使用tf.slice取出句子长度的embedding
       position_embeddings = tf.slice(full_position_embeddings, [0, 0],
                                      [seq_length, -1])
       num_dims = len(output.shape.as_list())
@@ -512,6 +516,11 @@ def embedding_postprocessor(input_tensor,  # [batch_size, seq_length, embedding_
       # Only the last two dimensions are relevant (`seq_length` and `width`), so
       # we broadcast among the first dimensions, which is typically just
       # the batch size.
+      # word embedding之后的tensor是[batch_size, seq_length, width]
+      # 因为位置编码是与输入内容无关，它的shape总是[seq_length, width]
+      # 我们无法把位置Embedding加到word embedding上
+      # 因此我们需要扩展位置编码为[1, seq_length, width]
+      # 然后就能通过broadcasting加上去了。
       position_broadcast_shape = []
       for _ in range(num_dims - 2):
         position_broadcast_shape.append(1)
