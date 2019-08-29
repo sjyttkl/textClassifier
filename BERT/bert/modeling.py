@@ -424,18 +424,18 @@ def embedding_lookup(input_ids,
 
   output = tf.reshape(output,
                       input_shape[0:-1] + [input_shape[-1] * embedding_size])
-  return (output, embedding_table)
+  return (output, embedding_table)#Return：【batch_size, seq_length, embedding_size】
 
 
-def embedding_postprocessor(input_tensor,
+def embedding_postprocessor(input_tensor,  # [batch_size, seq_length, embedding_size]
                             use_token_type=False,
                             token_type_ids=None,
-                            token_type_vocab_size=16,
+                            token_type_vocab_size=16, # 一般是2
                             token_type_embedding_name="token_type_embeddings",
                             use_position_embeddings=True,
                             position_embedding_name="position_embeddings",
                             initializer_range=0.02,
-                            max_position_embeddings=512,
+                            max_position_embeddings=512, #最大位置编码，必须大于等于max_seq_le
                             dropout_prob=0.1):
   """Performs various post-processing on a word embedding tensor.
 
@@ -470,7 +470,7 @@ def embedding_postprocessor(input_tensor,
   width = input_shape[2]
 
   output = input_tensor
-
+  # Segment position信息
   if use_token_type:
     if token_type_ids is None:
       raise ValueError("`token_type_ids` must be specified if"
@@ -481,6 +481,7 @@ def embedding_postprocessor(input_tensor,
         initializer=create_initializer(initializer_range))
     # This vocab will be small so we always do one-hot here, since it is always
     # faster for a small vocabulary.
+    # 由于token-type-table比较小，所以这里采用one-hot的embedding方式加速
     flat_token_type_ids = tf.reshape(token_type_ids, [-1])
     one_hot_ids = tf.one_hot(flat_token_type_ids, depth=token_type_vocab_size)
     token_type_embeddings = tf.matmul(one_hot_ids, token_type_table)
