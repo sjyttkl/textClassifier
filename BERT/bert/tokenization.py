@@ -24,7 +24,8 @@ import unicodedata
 import six
 import tensorflow as tf
 
-
+#中文解析网站：https://blog.csdn.net/Kaiyuan_sjtu/article/details/90288178
+# tokenization.py是对原始文本语料的处理，分为BasicTokenizer和WordpieceTokenizer两类。
 def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
   """Checks whether the casing config is consistent with the checkpoint name."""
 
@@ -76,7 +77,11 @@ def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
 
 
 def convert_to_unicode(text):
-  """Converts `text` to Unicode (if it's not already), assuming utf-8 input."""
+  """
+   把文本转换成 unicode格式，python3就不需要转了。
+  :param text:字符
+  :return: Converts `text` to Unicode (if it's not already), assuming utf-8 input.
+  """
   if six.PY3:
     if isinstance(text, str):
       return text
@@ -87,7 +92,7 @@ def convert_to_unicode(text):
   elif six.PY2:
     if isinstance(text, str):
       return text.decode("utf-8", "ignore")
-    elif isinstance(text, unicode):
+    elif isinstance(text,unicode):
       return text
     else:
       raise ValueError("Unsupported string type: %s" % (type(text)))
@@ -109,9 +114,9 @@ def printable_text(text):
       raise ValueError("Unsupported string type: %s" % (type(text)))
   elif six.PY2:
     if isinstance(text, str):
-      return text
+        return text
     elif isinstance(text, unicode):
-      return text.encode("utf-8")
+        return text.encode("utf-8")
     else:
       raise ValueError("Unsupported string type: %s" % (type(text)))
   else:
@@ -150,7 +155,11 @@ def convert_ids_to_tokens(inv_vocab, ids):
 
 
 def whitespace_tokenize(text):
-  """Runs basic whitespace cleaning and splitting on a piece of text."""
+  """
+  基于空格进行分词。
+  :param text: 输入
+  :return:Runs basic whitespace cleaning and splitting on a piece of text.
+  """
   text = text.strip()
   if not text:
     return []
@@ -162,6 +171,7 @@ class FullTokenizer(object):
   """Runs end-to-end tokenziation."""
 
   def __init__(self, vocab_file, do_lower_case=True):
+    # 加载词表文件为字典形式
     self.vocab = load_vocab(vocab_file)
     self.inv_vocab = {v: k for k, v in self.vocab.items()}
     self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
@@ -169,7 +179,9 @@ class FullTokenizer(object):
 
   def tokenize(self, text):
     split_tokens = []
+    # 调用BasicTokenizer粗粒度分词
     for token in self.basic_tokenizer.tokenize(text):
+        # 调用WordpieceTokenizer细粒度分词
       for sub_token in self.wordpiece_tokenizer.tokenize(token):
         split_tokens.append(sub_token)
 
@@ -184,7 +196,7 @@ class FullTokenizer(object):
 
 class BasicTokenizer(object):
   """Runs basic tokenization (punctuation splitting, lower casing, etc.)."""
-
+   #根据空格，标点进行普通的分词，最后返回的是关于词的列表，对于中文而言是关于字的列表。
   def __init__(self, do_lower_case=True):
     """Constructs a BasicTokenizer.
 
@@ -204,6 +216,7 @@ class BasicTokenizer(object):
     # and generally don't have any Chinese data in them (there are Chinese
     # characters in the vocabulary because Wikipedia does have some Chinese
     # words in the English Wikipedia.).
+    # 增加中文支持
     text = self._tokenize_chinese_chars(text)
 
     orig_tokens = whitespace_tokenize(text)
@@ -218,11 +231,18 @@ class BasicTokenizer(object):
     return output_tokens
 
   def _run_strip_accents(self, text):
-    """Strips accents from a piece of text."""
-    text = unicodedata.normalize("NFD", text)
+    """
+    调用_run_strip_accents函数去除accent(声调，音符）
+    :param text:
+    :return:
+    Strips accents from a piece of text.
+    """
+    text = unicodedata.normalize("NFD", text)# 对text进行归一化，主要对一些法语或者 带有音符的拼音进行操作。
     output = []
     for char in text:
       cat = unicodedata.category(char)
+      # 把category为Mn的去掉，就是去掉音符，
+      # refer: https://www.fileformat.info/info/unicode/category/Mn/list.htm
       if cat == "Mn":
         continue
       output.append(char)
@@ -230,6 +250,7 @@ class BasicTokenizer(object):
 
   def _run_split_on_punc(self, text):
     """Splits punctuation on a piece of text."""
+    # 用标点切分，返回list
     chars = list(text)
     i = 0
     start_new_word = True
@@ -249,7 +270,12 @@ class BasicTokenizer(object):
     return ["".join(x) for x in output]
 
   def _tokenize_chinese_chars(self, text):
-    """Adds whitespace around any CJK character."""
+    """"
+        剔除无意义的词(控制字符等)，并在每个字之间加入空格。方便按照空格进行分割。
+     :param text:一条文本
+     :return:按字切分中文，实现就是在字两侧添加空格,返回为str类型
+     Adds whitespace around any CJK character.
+    """
     output = []
     for char in text:
       cp = ord(char)
@@ -271,6 +297,8 @@ class BasicTokenizer(object):
     # as is Japanese Hiragana and Katakana. Those alphabets are used to write
     # space-separated words, so they are not treated specially and handled
     # like the all of the other languages.
+    # 判断是否是汉字
+    # refer： https://www.cnblogs.com/straybirds/p/6392306.html
     if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
         (cp >= 0x3400 and cp <= 0x4DBF) or  #
         (cp >= 0x20000 and cp <= 0x2A6DF) or  #
@@ -285,9 +313,11 @@ class BasicTokenizer(object):
 
   def _clean_text(self, text):
     """Performs invalid character removal and whitespace cleanup on text."""
+    # 去除无意义字符以及空格
     output = []
     for char in text:
       cp = ord(char)
+      # codepoint为0的是无意义的字符，0xfffd(U + FFFD)显示为�
       if cp == 0 or cp == 0xfffd or _is_control(char):
         continue
       if _is_whitespace(char):
@@ -299,6 +329,11 @@ class BasicTokenizer(object):
 
 class WordpieceTokenizer(object):
   """Runs WordPiece tokenziation."""
+  """
+  # WordpieceTokenizer是将BasicTokenizer的结果进一步做更细粒度的切分。
+  做这一步的目的主要是为了去除未登录词对模型效果的影响。
+  这一过程对中文没有影响，因为在前面BasicTokenizer里面已经切分成以字为单位的了。
+  """
 
   def __init__(self, vocab, unk_token="[UNK]", max_input_chars_per_word=200):
     self.vocab = vocab
@@ -322,7 +357,14 @@ class WordpieceTokenizer(object):
     Returns:
       A list of wordpiece tokens.
     """
+    """使用贪心的最大正向匹配算法
+        例如:
+        input = "unaffable"
+        output = ["un", "##aff", "##able"]
+        我们用一个例子来看代码的执行过程。比如假设输入是”unaffable”。我们跳到while循环部分，这是start=0，end=len(chars)=9，也就是先看看unaffable在不在词典里，如果在，那么直接作为一个WordPiece，如果不再，那么end-=1，也就是看unaffabl在不在词典里，最终发现”un”在词典里，把un加到结果里。
+        接着start=2，看affable在不在，不在再看affabl，…，最后发现 ##aff 在词典里。注意：##表示这个词是接着前面的，这样使得WordPiece切分是可逆的——我们可以恢复出“真正”的词。
 
+    """
     text = convert_to_unicode(text)
 
     output_tokens = []
@@ -363,6 +405,7 @@ def _is_whitespace(char):
   """Checks whether `chars` is a whitespace character."""
   # \t, \n, and \r are technically contorl characters but we treat them
   # as whitespace since they are generally considered as such.
+  # 这里把category为Zs的字符以及空格、tab、换行和回车当成whitespace
   if char == " " or char == "\t" or char == "\n" or char == "\r":
     return True
   cat = unicodedata.category(char)
@@ -375,6 +418,8 @@ def _is_control(char):
   """Checks whether `chars` is a control character."""
   # These are technically control characters but we count them as whitespace
   # characters.
+  #检查字符char是否是控制字符
+  # 回车换行和tab理论上是控制字符，但是这里我们把它认为是whitespace而不是控制字符
   if char == "\t" or char == "\n" or char == "\r":
     return False
   cat = unicodedata.category(char)
@@ -384,8 +429,15 @@ def _is_control(char):
 
 
 def _is_punctuation(char):
-  """Checks whether `chars` is a punctuation character."""
+  """
+    判断是否为标点，返回true/false
+  :param char:一个字符
+  :return: Checks whether `chars` is a punctuation character.
+  """
+
   cp = ord(char)
+  # 我们把ASCII里非字母数字都当成标点。
+  # 在Unicode的category定义里，  "^", "$", and "`" 等都不是标点，但是我们这里都认为是标点。
   # We treat all non-letter/number ASCII as punctuation.
   # Characters such as "^", "$", and "`" are not in the Unicode
   # Punctuation class but we treat them as punctuation anyways, for
@@ -393,6 +445,7 @@ def _is_punctuation(char):
   if ((cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or
       (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126)):
     return True
+  # category是P开头的都是标点，参考https://en.wikipedia.org/wiki/Unicode_character_property
   cat = unicodedata.category(char)
   if cat.startswith("P"):
     return True

@@ -22,7 +22,7 @@ import collections
 import random
 import tensorflow as tf
 import tokenization
-
+# 这个文件的这作用就是将原始输入语料转换成模型预训练所需要的数据格式TFRecoed。
 flags = tf.flags
 
 FLAGS = flags.FLAGS
@@ -46,22 +46,24 @@ flags.DEFINE_integer("max_seq_length", 128, "Maximum sequence length.")
 
 flags.DEFINE_integer("max_predictions_per_seq", 20,
                      "Maximum number of masked LM predictions per sequence.")
-
+# max_predictions_per_seq： 一个句子里最多有多少个[MASK]标记
 flags.DEFINE_integer("random_seed", 12345, "Random seed for data generation.")
 
 flags.DEFINE_integer(
     "dupe_factor", 10,
     "Number of times to duplicate the input data (with different masks).")
+# dupe_factor 重复参数，即对于同一个句子，我们可以设置不同位置的【MASK】次数。比如对于句子Hello world, this is bert.，为了充分利用数据，第一次可以mask成Hello [MASK], this is bert.，第二次可以变成Hello world, this is [MASK[.
 
 flags.DEFINE_float("masked_lm_prob", 0.15, "Masked LM probability.")
-
+#多少比例的Token被MASK掉
 flags.DEFINE_float(
     "short_seq_prob", 0.1,
     "Probability of creating sequences which are shorter than the "
     "maximum length.")
+#长度小于“max_seq_length”的样本比例。因为在fine-tune过程里面输入的target_seq_length是可变的（小于等于max_seq_length），
+# 那么为了防止过拟合也需要在pre-train的过程当中构造一些短的样本。
 
-
-class TrainingInstance(object):
+class TrainingInstance(object):#构造训练样本
   """A single training instance (sentence pair)."""
 
   def __init__(self, tokens, segment_ids, masked_lm_positions, masked_lm_labels,
@@ -406,7 +408,7 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens, rng):
       trunc_tokens.pop()
 
 
-def main(_):
+def main(_):#首先来看构造数据的整体流程，
   tf.logging.set_verbosity(tf.logging.INFO)
 
   tokenizer = tokenization.FullTokenizer(
@@ -421,7 +423,7 @@ def main(_):
     tf.logging.info("  %s", input_file)
 
   rng = random.Random(FLAGS.random_seed)
-  instances = create_training_instances(
+  instances = create_training_instances(#经过create_training_instances函数构造训练instance
       input_files, tokenizer, FLAGS.max_seq_length, FLAGS.dupe_factor,
       FLAGS.short_seq_prob, FLAGS.masked_lm_prob, FLAGS.max_predictions_per_seq,
       rng)
@@ -430,7 +432,7 @@ def main(_):
   tf.logging.info("*** Writing to output files ***")
   for output_file in output_files:
     tf.logging.info("  %s", output_file)
-
+  #调用write_instance_to_example_files函数以TFRecord格式保存数据
   write_instance_to_example_files(instances, tokenizer, FLAGS.max_seq_length,
                                   FLAGS.max_predictions_per_seq, output_files)
 
