@@ -90,7 +90,7 @@ class TrainingInstance(object):#构造训练样本
   def __repr__(self):
     return self.__str__()
 
-
+#最后是将上述步骤处理好的数据保存为tfrecord文件。整体逻辑比较简单，代码如下
 def write_instance_to_example_files(instances, tokenizer, max_seq_length,
                                     max_predictions_per_seq, output_files):
   """Create TF example files from `TrainingInstance`s."""
@@ -102,11 +102,13 @@ def write_instance_to_example_files(instances, tokenizer, max_seq_length,
 
   total_written = 0
   for (inst_index, instance) in enumerate(instances):
+    # 将输入转成word-ids
     input_ids = tokenizer.convert_tokens_to_ids(instance.tokens)
+    # 记录实际句子长度
     input_mask = [1] * len(input_ids)
     segment_ids = list(instance.segment_ids)
     assert len(input_ids) <= max_seq_length
-
+    # padding
     while len(input_ids) < max_seq_length:
       input_ids.append(0)
       input_mask.append(0)
@@ -135,14 +137,14 @@ def write_instance_to_example_files(instances, tokenizer, max_seq_length,
     features["masked_lm_ids"] = create_int_feature(masked_lm_ids)
     features["masked_lm_weights"] = create_float_feature(masked_lm_weights)
     features["next_sentence_labels"] = create_int_feature([next_sentence_label])
-
+    # 生成训练样本
     tf_example = tf.train.Example(features=tf.train.Features(feature=features))
-
+    # 输出到文件
     writers[writer_index].write(tf_example.SerializeToString())
     writer_index = (writer_index + 1) % len(writers)
 
     total_written += 1
-
+    # 打印前20个样本
     if inst_index < 20:
       tf.logging.info("*** Example ***")
       tf.logging.info("tokens: %s" % " ".join(
@@ -173,12 +175,29 @@ def create_float_feature(values):
   feature = tf.train.Feature(float_list=tf.train.FloatList(value=list(values)))
   return feature
 
+'''
+create_instances_from_document分析的是一个文档，
+算法首先会维护一个chunk，不断加入document中的元素，也就是句子（segment），直到加载完或者chunk中token数大于等于最大限制，这样做的目的是使得padding的尽量少，训练效率更高。
+现在chunk建立完毕之后，假设包括了前三个句子，算法会随机选择一个切分点，比如2。接下来构建predict next判断：
+(1) 如果是正样本，前两个句子当成是句子A，后一个句子当成是句子B；
+(2) 如果是负样本，前两个句子当成是句子A，无关的句子从其他文档中随机抽取
+得到句子A和句子B之后，对其填充tokens和segment_ids，这里会加入特殊的[CLS]和[SEP]标记
+对句子进行mask操作（下一节中描述）
 
+'''
 def create_training_instances(input_files, tokenizer, max_seq_length,
                               dupe_factor, short_seq_prob, masked_lm_prob,
                               max_predictions_per_seq, rng):
   """Create `TrainingInstance`s from raw text."""
+  """
+ 构造训练样本的代码如下。在源码包中Google提供了一个实例训练样本输入（sample_text.txt），输入文件格式为：
+ 1. 每行一个句子，这应该是实际的句子，不应该是整个段落或者段落的随机片段(span)，因为我们需要使用句子边界来做下一个句子的预测。
+ 2. 不同文档之间用一个空行分割。
+ 3. 我们认为同一文档的句子之间是有关系的，不同文档句子之间没有关系。
+  """
   all_documents = [[]]
+  # all_documents是list的list，第一层list表示document，
+  # 第二层list表示document里的多个句子。
 
   # Input file format:
   # (1) One sentence per line. These should ideally be actual sentences, not
@@ -195,6 +214,7 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
         line = line.strip()
 
         # Empty lines are used as document delimiters
+        # 空行表示文档分割
         if not line:
           all_documents.append([])
         tokens = tokenizer.tokenize(line)
@@ -202,11 +222,13 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
           all_documents[-1].append(tokens)
 
   # Remove empty documents
+  # 删除空文档
   all_documents = [x for x in all_documents if x]
   rng.shuffle(all_documents)
 
   vocab_words = list(tokenizer.vocab.keys())
   instances = []
+  # 重复dupe_factor次
   for _ in range(dupe_factor):
     for document_index in range(len(all_documents)):
       instances.extend(
@@ -221,10 +243,23 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
 def create_instances_from_document(
     all_documents, document_index, max_seq_length, short_seq_prob,
     masked_lm_prob, max_predictions_per_seq, vocab_words, rng):
+  """
+  调用create_instances_from_document来实现从一个文档中抽取多个训练样本。
+  :param all_documents:
+  :param document_index:
+  :param max_seq_length:
+  :param short_seq_prob:
+  :param masked_lm_prob:
+  :param max_predictions_per_seq:
+  :param vocab_words:
+  :param rng:
+  :return:
+  """
   """Creates `TrainingInstance`s for a single document."""
   document = all_documents[document_index]
 
   # Account for [CLS], [SEP], [SEP]
+  # 为[CLS], [SEP], [SEP]预留三个空位
   max_num_tokens = max_seq_length - 3
 
   # We *usually* want to fill up the entire sequence since we are padding
@@ -236,6 +271,7 @@ def create_instances_from_document(
   # `max_seq_length` is a hard limit.
   target_seq_length = max_num_tokens
   if rng.random() < short_seq_prob:
+    # 以short_seq_prob的概率随机生成（2~max_num_tokens）的长度
     target_seq_length = rng.randint(2, max_num_tokens)
 
   # We DON'T just concatenate all of the tokens from a document into a long
@@ -251,8 +287,10 @@ def create_instances_from_document(
     segment = document[i]
     current_chunk.append(segment)
     current_length += len(segment)
+    # 将句子依次加入current_chunk中，直到加完或者达到限制的最大长度
     if i == len(document) - 1 or current_length >= target_seq_length:
       if current_chunk:
+        # `a_end`是第一个句子A结束的下标
         # `a_end` is how many segments from `current_chunk` go into the `A`
         # (first) sentence.
         a_end = 1
@@ -264,11 +302,16 @@ def create_instances_from_document(
           tokens_a.extend(current_chunk[j])
 
         tokens_b = []
-        # Random next
+        # Random next # 是否随机next
         is_random_next = False
+        # 构建随机的下一句
         if len(current_chunk) == 1 or rng.random() < 0.5:
           is_random_next = True
           target_b_length = target_seq_length - len(tokens_a)
+
+          # 随机的挑选另外一篇文档的随机开始的句子
+          # 但是理论上有可能随机到的文档就是当前文档，因此需要一个while循环
+          # 这里只while循环10次，理论上还是有重复的可能性，但是我们忽略
 
           # This should rarely go for more than one iteration for large
           # corpora. However, just to be careful, we try to make sure that
@@ -285,15 +328,19 @@ def create_instances_from_document(
             tokens_b.extend(random_document[j])
             if len(tokens_b) >= target_b_length:
               break
+          # 对于上述构建的随机下一句，我们并没有真正地使用它们
+          # 所以为了避免数据浪费，我们将其“放回”
           # We didn't actually use these segments so we "put them back" so
           # they don't go to waste.
           num_unused_segments = len(current_chunk) - a_end
           i -= num_unused_segments
         # Actual next
+        # 构建真实的下一句
         else:
           is_random_next = False
           for j in range(a_end, len(current_chunk)):
             tokens_b.extend(current_chunk[j])
+        # 如果太多了，随机去掉一些
         truncate_seq_pair(tokens_a, tokens_b, max_num_tokens, rng)
 
         assert len(tokens_a) >= 1
@@ -301,21 +348,23 @@ def create_instances_from_document(
 
         tokens = []
         segment_ids = []
+        # 处理句子A
         tokens.append("[CLS]")
         segment_ids.append(0)
         for token in tokens_a:
           tokens.append(token)
           segment_ids.append(0)
-
+        # 句子A结束，加上【SEP】
         tokens.append("[SEP]")
         segment_ids.append(0)
-
+        # 处理句子B
         for token in tokens_b:
           tokens.append(token)
           segment_ids.append(1)
+        # 句子B结束，加上【SEP】
         tokens.append("[SEP]")
         segment_ids.append(1)
-
+        # 调用 create_masked_lm_predictions来随机对某些Token进行mask
         (tokens, masked_lm_positions,
          masked_lm_labels) = create_masked_lm_predictions(
              tokens, masked_lm_prob, max_predictions_per_seq, vocab_words, rng)
@@ -337,11 +386,23 @@ MaskedLmInstance = collections.namedtuple("MaskedLmInstance",
                                           ["index", "label"])
 
 
+"""
+对Tokens进行随机mask是BERT的一大创新点。使用mask的原因是为了防止模型在双向循环训练的过程中“预见自身”。于是，文章中选取的策略是对输入序列中15%的词使用[MASK]标记掩盖掉，然后通过上下文去预测这些被mask的token。但是为了防止模型过拟合地学习到【MASK】这个标记，对15%mask掉的词进一步优化：
+
+以80%的概率用[MASK]替换：
+hello world， this is bert. ----> hello world, this is [MASK].
+以10%的概率随机替换：
+hello world， this is bert. ----> hello world, this is python.
+以10%的概率不进行替换：
+hello world， this is bert. ----> hello world, this is bert.
+
+"""
 def create_masked_lm_predictions(tokens, masked_lm_prob,
                                  max_predictions_per_seq, vocab_words, rng):
   """Creates the predictions for the masked LM objective."""
 
   cand_indexes = []
+  # [CLS]和[SEP]不能用于MASK
   for (i, token) in enumerate(tokens):
     if token == "[CLS]" or token == "[SEP]":
       continue
@@ -378,7 +439,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
     output_tokens[index] = masked_token
 
     masked_lms.append(MaskedLmInstance(index=index, label=tokens[index]))
-
+  # 按照下标重排，保证是原来句子中出现的顺序
   masked_lms = sorted(masked_lms, key=lambda x: x.index)
 
   masked_lm_positions = []
