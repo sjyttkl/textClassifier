@@ -477,7 +477,7 @@ def main(_):#首先来看构造数据的整体流程，
 
   input_files = []
   for input_pattern in FLAGS.input_file.split(","):
-    input_files.extend(tf.gfile.Glob(input_pattern))
+    input_files.extend(tf.gfile.Glob(input_pattern))#获取正则表达式，把符合正则的文件，全部取出来
 
   tf.logging.info("*** Reading from input files ***")
   for input_file in input_files:
