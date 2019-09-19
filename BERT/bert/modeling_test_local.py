@@ -25,10 +25,12 @@ import tensorflow as tf
 input_ids = tf.constant([[31, 51, 99], [15, 5, 0]])
 input_mask = tf.constant([[1, 1, 1], [1, 1, 0]])
 # segment_emebdding. 表示第一个样本前两个词属于句子1，后一个词属于句子2.
-# 第二个样本的第一个词属于句子1， 第二次词属于句子2，第三个元素0表示padding
+# 第二个样本的第一个词属于句子1， 第二个词属于句子2，第三个元素0表示padding
 token_type_ids = tf.constant([[0, 0, 1], [0, 2, 0]])
 
 # 创建BertConfig实例
+# 创建一个BertConfig，词典大小是32000，Transformer的隐单元个数是512
+# 8个Transformer block，每个block有6个Attention Head，全连接层的隐单元是1024
 config = modeling.BertConfig(vocab_size=32000, hidden_size=512,
         num_hidden_layers=8, num_attention_heads=6, intermediate_size=1024)
 
@@ -36,8 +38,9 @@ config = modeling.BertConfig(vocab_size=32000, hidden_size=512,
 model = modeling.BertModel(config=config, is_training=True,
      input_ids=input_ids, input_mask=input_mask, token_type_ids=token_type_ids)
 
-
+# label_embeddings用于把512的隐单元变换成logits
 label_embeddings = tf.get_variable(...)
 #得到最后一层的第一个Token也就是[CLS]向量表示，可以看成是一个句子的embedding
 pooled_output = model.get_pooled_output()
+# 计算logits
 logits = tf.matmul(pooled_output, label_embeddings)

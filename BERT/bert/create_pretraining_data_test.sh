@@ -1,6 +1,6 @@
 python create_pretraining_data.py \
   --input_file=./sample_text_zh.txt \
-  --output_file=/tmp/tf_examples.tfrecord \
+  --output_file= ./tf_examples.tfrecord \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --do_lower_case=True \
   --max_seq_length=128 \

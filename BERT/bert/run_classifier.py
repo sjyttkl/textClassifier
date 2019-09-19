@@ -176,7 +176,7 @@ class InputFeatures(object):
 
 class DataProcessor(object):
   """Base class for data converters for sequence classification data sets."""
-
+  #抽象类
   def get_train_examples(self, data_dir):
     """Gets a collection of `InputExample`s for the train set."""
     raise NotImplementedError()
@@ -383,12 +383,12 @@ class MrpcProcessor(DataProcessor):
       guid = "%s-%s" % (set_type, i)
       text_a = tokenization.convert_to_unicode(line[3])
       text_b = tokenization.convert_to_unicode(line[4])
-      if set_type == "test":
+      if set_type == "test": #那么第一列line[0]就是真正的label，而如果是测试集合，label就没有意义，随便赋值成”0”
         label = "0"
       else:
         label = tokenization.convert_to_unicode(line[0])
       examples.append(
-          InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+          InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))#最终构造出一个InputExample对象来，它有4个属性：guid、text_a、text_b和label，guid只是个唯一的id而已。text_a代表第一个句子，text_b代表第二个句子，第二个句子可以为None，label代表分类标签。
     return examples
 
 
