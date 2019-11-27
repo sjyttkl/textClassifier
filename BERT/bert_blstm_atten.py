@@ -855,7 +855,7 @@ def main(_):
 
 
 if __name__ == "__main__":
-    flags.mark_flag_as_required("data_dir")
+    flags.mark_flag_as_required("data_dir")  # 这条命令就是表示该 参数是必须的,此时当没有设置对应的命令行参数时，会抛出异常信息
     flags.mark_flag_as_required("task_name")
     flags.mark_flag_as_required("vocab_file")
     flags.mark_flag_as_required("bert_config_file")
