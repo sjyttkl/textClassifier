@@ -452,6 +452,7 @@ def embedding_postprocessor(input_tensor,  # [batch_size, seq_length, embedding_
                             max_position_embeddings=512, #最大位置编码，必须大于等于max_seq_le
                             dropout_prob=0.1):
   """Performs various post-processing on a word embedding tensor.
+     加入token_embedding 、segment_embedding 、position_embedding
 
   Args:
     input_tensor: float Tensor of shape [batch_size, seq_length,
