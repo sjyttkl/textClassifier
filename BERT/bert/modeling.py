@@ -111,30 +111,32 @@ class BertModel(object):
   ```python
   # Already been converted into WordPiece token ids
   input_ids = tf.constant([[31, 51, 99], [15, 5, 0]])
-  input_mask = tf.constant([[1, 1, 1], [1, 1, 0]])
-  token_type_ids = tf.constant([[0, 0, 1], [0, 2, 0]])
+  input_mask = tf.constant([[1, 1, 1], [1, 1, 0]]) #  # 第一个例子实际长度为3，第二个例子长度为2
+  token_type_ids = tf.constant([[0, 0, 1], [0, 2, 0]]) #  # 第一个的3个Token中前两个属于句子1，第三个属于句子2   # 例子的第一个Token属于句子1，第二个属于句子2(第三个是padding)
 
   config = modeling.BertConfig(vocab_size=32000, hidden_size=512,
     num_hidden_layers=8, num_attention_heads=6, intermediate_size=1024)
+  #创建一个BertConfig，词典大小是32000，Transformer的隐单元个数是512   # 8个Transformer block，每个block有8个Attention Head，全连接层的隐单元是1024
 
   model = modeling.BertModel(config=config, is_training=True,
     input_ids=input_ids, input_mask=input_mask, token_type_ids=token_type_ids)
 
+# label_embeddings用于把512的隐单元变换成logits
   label_embeddings = tf.get_variable(...)
-  pooled_output = model.get_pooled_output()
-  logits = tf.matmul(pooled_output, label_embeddings)
+  pooled_output = model.get_pooled_output()  # 得到[CLS]最后一层输出，把它看成句子的Embedding(Encoding)
+  logits = tf.matmul(pooled_output, label_embeddings)  # 计算logits
   ...
   ```
   """
 
   def __init__(self,
                config,# BertConfig对象
-               is_training,
+               is_training,#is_training进行判断，如果为False，则将config中dropout的概率均设为0。
                input_ids,   # 【batch_size, seq_length】
                input_mask=None, # 【batch_size, seq_length】
                token_type_ids=None, # 【batch_size, seq_length】
                use_one_hot_embeddings=True, # 是否使用one-hot；否则tf.gather()
-               scope=None):
+               scope=None):#scope参数会影响计算图中tensor的名字前缀，如不填写，则前缀为”bert”
     """Constructor for BertModel.
 
     Args:
@@ -166,12 +168,12 @@ class BertModel(object):
     if input_mask is None:
       input_mask = tf.ones(shape=[batch_size, seq_length], dtype=tf.int32)
 
-    if token_type_ids is None:
+    if token_type_ids is None:#表示只有一句，没有第二句
       token_type_ids = tf.zeros(shape=[batch_size, seq_length], dtype=tf.int32)
 
     with tf.variable_scope(scope, default_name="bert"):
       with tf.variable_scope("embeddings"):
-        # Perform embedding lookup on the word ids.
+        # Perform embedding lookup on the word ids.  # 词的Embedding lookup
         (self.embedding_output, self.embedding_table) = embedding_lookup(
             input_ids=input_ids,
             vocab_size=config.vocab_size,
@@ -188,7 +190,7 @@ class BertModel(object):
             input_tensor=self.embedding_output,
             use_token_type=True,
             token_type_ids=token_type_ids,
-            token_type_vocab_size=config.type_vocab_size,
+            token_type_vocab_size=config.type_vocab_size,#表示一共有多少个句子，一般只有两个句子
             token_type_embedding_name="token_type_embeddings",
             use_position_embeddings=True,
             position_embedding_name="position_embeddings",
@@ -444,7 +446,7 @@ def embedding_lookup(input_ids,
 def embedding_postprocessor(input_tensor,  # [batch_size, seq_length, embedding_size]
                             use_token_type=False,
                             token_type_ids=None,
-                            token_type_vocab_size=16, # 一般是2
+                            token_type_vocab_size=16, # 一般是2，表示一共只有两个句子
                             token_type_embedding_name="token_type_embeddings",
                             use_position_embeddings=True,
                             position_embedding_name="position_embeddings",
@@ -507,7 +509,7 @@ def embedding_postprocessor(input_tensor,  # [batch_size, seq_length, embedding_
   if use_position_embeddings:
       # 确保seq_length小于等于max_position_embeddings
     assert_op = tf.assert_less_equal(seq_length, max_position_embeddings)
-    with tf.control_dependencies([assert_op]):
+    with tf.control_dependencies([assert_op]):#控制依赖，先运行里面的，再执行下面的。
       full_position_embeddings = tf.get_variable(
           name=position_embedding_name,
           shape=[max_position_embeddings, width],
